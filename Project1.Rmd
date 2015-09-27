@@ -1,0 +1,95 @@
+---
+title: "Machine Learning Project"
+author: stancyclops
+date: September 27, 2015
+output: html_document
+---
+
+```{r,echo=FALSE}
+setwd("~/R/Coursera/MachLearn")
+set.seed(2288)
+library(caret)
+library(randomForest)
+
+
+
+```
+
+We get the following description of the activities in teh documentation:
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E)
+
+So after reading the documentation, it looks like the classification of the movements can be determined based on whether certain measurements were or were not as large as expected. For example, for a dumbbell curl of Class E, we would expect more movement in the hips than one that is correctly done - Class A.
+
+First, weed out unnecessary columns: x, user name, timestamps, window stuff (first 7 columns). There are also a bunch of columns that contain NAs, which will cause major issues in building models. In addition, there are some columns that are totally blank that I'm also going to weed out.
+
+```{r}
+testing <- read.csv("pml-testing.csv")
+training <- read.csv("pml-training.csv")
+```
+
+```{r}
+
+n <- length(names(training))
+trainingtrunc <- training[,8:n]
+
+nas <- colSums(is.na(trainingtrunc)) == 0
+trainingclean <- trainingtrunc[,nas]
+
+##The blank columns are all factors
+factors <- trainingclean[sapply(trainingclean,is.factor)]
+##But we want to keep classe
+factors2 <- factors[,1:33]
+factornames2 <- names(factors2)
+factornames3 <- as.list(factornames2)
+trainingcol <- trainingclean[,setdiff(names(trainingclean),factornames3)]
+
+intrain <- createDataPartition(y=trainingcol$classe,p=0.4,list=FALSE)
+
+traindata <- trainingcol[intrain,]
+testdata <- trainingcol[-intrain,]
+
+```
+
+Now, I want to clean out any variables that might be pairwise correlated.
+
+```{r}
+
+m <- length(names(traindata))
+corr <- cor(traindata[,1:m-1])
+remove <- findCorrelation(corr)
+trainfinal <- traindata[,-remove]
+
+```
+
+Now, let's build a model! I went with a random forest.
+
+```{r, eval=FALSE}
+#build model
+modfit2 <- train(classe~.,data=trainfinal,method="rf")
+```
+
+```{r, echo=FALSE}
+#build model
+load("modfit2.Rdata")
+```
+
+```{r}
+
+##apply model to test sample
+testpredict <- predict(modfit2,newdata=testdata)
+
+#calculate model accuracy
+modelaccuracy <- sum(testpredict == testdata$classe)/length(testpredict)
+modelaccuracy
+
+##give out of sample error
+ooserror <- 1 - modelaccuracy
+ooserror
+
+```
+
+```{r, echo=FALSE}
+error <- ooserror * 100
+paste("Out of sample error is estimated to be", round(error, digits=2), "%")
+
+```
